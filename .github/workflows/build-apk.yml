@@ -8,172 +8,180 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Set up Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
 
-      - name: Recreate fixed ProfitMirror project
-        shell: bash
+      - name: Create app
         run: |
-          cat > project.b64 <<'EOF'
-          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
+          mkdir -p app/src/main/java/com/profitmirror/app
+          mkdir -p app/src/main/res/values
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          rootProject.name='ProfitMirror'
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins { id 'com.android.application' version '8.7.3' apply false }
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins { id 'com.android.application' }
+          android {
+            namespace 'com.profitmirror.app'
+            compileSdk 35
+            defaultConfig {
+              applicationId "com.profitmirror.app"
+              minSdk 24
+              targetSdk 35
+              versionCode 1
+              versionName "0.1"
+            }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <application android:label="ProfitMirror" android:theme="@style/AppTheme">
+              <activity android:name=".MainActivity" android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+            <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+              <item name="android:statusBarColor">#111315</item>
+              <item name="android:navigationBarColor">#111315</item>
+              <item name="android:windowLightStatusBar">false</item>
+            </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/java/com/profitmirror/app/MainActivity.java <<'EOF'
+          package com.profitmirror.app;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.graphics.Color;
+          import android.view.View;
+          import android.widget.*;
+
+          public class MainActivity extends Activity {
+            LinearLayout root, page;
+            TextView title;
+
+            TextView txt(String s, int sp, boolean bold) {
+              TextView t=new TextView(this);
+              t.setText(s); t.setTextSize(sp); t.setTextColor(Color.rgb(20,20,20));
+              t.setPadding(0,10,0,10);
+              if(bold) t.setTypeface(null,1);
+              return t;
+            }
+
+            Button nav(String s, View.OnClickListener c) {
+              Button b=new Button(this); b.setText(s); b.setOnClickListener(c); return b;
+            }
+
+            EditText input(String label, String value) {
+              EditText e=new EditText(this); e.setHint(label); e.setText(value); e.setTextSize(18); return e;
+            }
+
+            void showDash() {
+              page.removeAllViews();
+              page.addView(txt("MONTHLY SNAPSHOT",12,true));
+              page.addView(txt("Busy doesn’t always mean profitable.",30,true));
+              String[] a={"Profit health 72/100","Revenue $18,750","Operating profit $5,430","Profit margin 28.9%","Utilization 68%","Avg ticket $79.50","Rebooking 62%","No-show impact $830"};
+              for(String s:a){
+                TextView c=txt(s,20,true);
+                c.setBackgroundColor(Color.WHITE);
+                c.setPadding(20,18,20,18);
+                page.addView(c);
+              }
+              page.addView(txt("Potential profit opportunities",18,true));
+              page.addView(txt("• Review lowest profit/hour service\n• Reduce no-shows\n• Improve utilization\n• Test one What-If scenario",16,false));
+            }
+
+            void showSetup() {
+              page.removeAllViews();
+              page.addView(txt("Business setup",28,true));
+              page.addView(input("Monthly rent","1800"));
+              page.addView(input("Utilities","350"));
+              page.addView(input("Software","180"));
+              page.addView(input("Marketing","500"));
+              page.addView(input("Target utilization %","75"));
+              page.addView(input("Target rebooking %","55"));
+            }
+
+            void showServices() {
+              page.removeAllViews();
+              page.addView(txt("Services",28,true));
+              String[] s={"Gel Manicure — $45 — 75 min","Structured Gel — $65 — 105 min","Gel-X Full Set — $85 — 120 min","Nail Art Add-on — $20 — 20 min"};
+              for(String x:s) page.addView(txt(x,17,true));
+            }
+
+            void showWhatIf() {
+              page.removeAllViews();
+              page.addView(txt("What-If",28,true));
+              page.addView(txt("Price change +10%",18,true));
+              SeekBar a=new SeekBar(this); a.setProgress(40); page.addView(a);
+              page.addView(txt("Client volume +5%",18,true));
+              SeekBar b=new SeekBar(this); b.setProgress(25); page.addView(b);
+              page.addView(txt("Projected profit: $7,180",24,true));
+            }
+
+            void showAudit() {
+              page.removeAllViews();
+              page.addView(txt("30-second audit",28,true));
+              page.addView(input("Revenue","15000"));
+              page.addView(input("Expenses","9500"));
+              page.addView(input("Booked hours","165"));
+              page.addView(input("Available hours","240"));
+              page.addView(txt("Result: $5,500 profit · 69% utilized",22,true));
+            }
+
+            @Override public void onCreate(Bundle b) {
+              super.onCreate(b);
+              root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(18,18,18,18); root.setBackgroundColor(Color.rgb(247,243,235));
+              TextView brand=txt("PROFITMIRROR™\nNail Profit Engine",22,true); brand.setTextColor(Color.WHITE); brand.setBackgroundColor(Color.rgb(17,19,21)); brand.setPadding(18,18,18,18); root.addView(brand);
+
+              HorizontalScrollView hs=new HorizontalScrollView(this);
+              LinearLayout navs=new LinearLayout(this); navs.setOrientation(LinearLayout.HORIZONTAL);
+              navs.addView(nav("Dashboard",v->showDash()));
+              navs.addView(nav("Setup",v->showSetup()));
+              navs.addView(nav("Services",v->showServices()));
+              navs.addView(nav("What-If",v->showWhatIf()));
+              navs.addView(nav("Audit",v->showAudit()));
+              hs.addView(navs); root.addView(hs);
+
+              ScrollView sv=new ScrollView(this);
+              page=new LinearLayout(this); page.setOrientation(LinearLayout.VERTICAL); page.setPadding(10,14,10,30);
+              sv.addView(page); root.addView(sv,new LinearLayout.LayoutParams(-1,0,1));
+              setContentView(root); showDash();
+            }
+          }
+          EOF
+
+      - name: Build APK
+        run: gradle assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProfitMirror-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
