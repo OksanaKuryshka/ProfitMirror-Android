@@ -1,28 +1,23 @@
 name: Build ProfitMirror APK
-
 on:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - uses: android-actions/setup-android@v3
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
 
       - name: Create app
         run: |
-          mkdir -p app/src/main/java/com/profitmirror/app
-          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/java/com/profitmirror/app app/src/main/res/values
 
           cat > settings.gradle <<'EOF'
           pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
@@ -44,16 +39,16 @@ jobs:
               applicationId "com.profitmirror.app"
               minSdk 24
               targetSdk 35
-              versionCode 1
-              versionName "0.1"
+              versionCode 2
+              versionName "0.2"
             }
           }
           EOF
 
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <application android:label="ProfitMirror" android:theme="@style/AppTheme">
-              <activity android:name=".MainActivity" android:exported="true">
+            <application android:label="ProfitMirror" android:theme="@style/AppTheme" android:allowBackup="false">
+              <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN"/>
                   <category android:name="android.intent.category.LAUNCHER"/>
@@ -66,9 +61,11 @@ jobs:
           cat > app/src/main/res/values/styles.xml <<'EOF'
           <resources>
             <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+              <item name="android:fontFamily">sans</item>
               <item name="android:statusBarColor">#111315</item>
               <item name="android:navigationBarColor">#111315</item>
               <item name="android:windowLightStatusBar">false</item>
+              <item name="android:colorAccent">#C6A15B</item>
             </style>
           </resources>
           EOF
@@ -76,103 +73,112 @@ jobs:
           cat > app/src/main/java/com/profitmirror/app/MainActivity.java <<'EOF'
           package com.profitmirror.app;
 
-          import android.app.Activity;
-          import android.os.Bundle;
-          import android.graphics.Color;
-          import android.view.View;
+          import android.app.*;
+          import android.os.*;
+          import android.content.*;
+          import android.graphics.*;
+          import android.graphics.drawable.*;
+          import android.text.InputType;
+          import android.view.*;
           import android.widget.*;
+          import java.util.*;
 
           public class MainActivity extends Activity {
-            LinearLayout root, page;
-            TextView title;
+            final int INK=Color.rgb(17,19,21), BG=Color.rgb(247,243,235), GOLD=Color.rgb(198,161,91), CARD=Color.rgb(255,253,250), MUTED=Color.rgb(112,106,97);
+            LinearLayout page, nav;
+            SharedPreferences sp;
+            String[] keys={"revenue","clients","returning","available","booked","noshow","variable","otherRev","rent","utilities","software","marketing","otherFixed","targetUtil","targetRebook"};
+            String[] labels={"Monthly revenue","Clients","Returning clients","Available hours","Booked hours","No-shows","Variable costs","Other revenue","Rent / studio","Utilities","Software & subscriptions","Marketing","Other fixed costs","Target utilization %","Target rebooking %"};
+            String[] defs={"18750","236","146","352","239","10","1100","300","1800","350","180","500","300","75","55"};
 
-            TextView txt(String s, int sp, boolean bold) {
-              TextView t=new TextView(this);
-              t.setText(s); t.setTextSize(sp); t.setTextColor(Color.rgb(20,20,20));
-              t.setPadding(0,10,0,10);
-              if(bold) t.setTypeface(null,1);
-              return t;
+            int dp(int x){return (int)(x*getResources().getDisplayMetrics().density);}
+            GradientDrawable box(int c,int r){GradientDrawable g=new GradientDrawable();g.setColor(c);g.setCornerRadius(dp(r));return g;}
+            TextView txt(String s,int z,boolean b,int c){TextView v=new TextView(this);v.setText(s);v.setTextSize(z);v.setTextColor(c);if(b)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return v;}
+            LinearLayout v(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
+            LinearLayout h(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);return l;}
+            LinearLayout card(){LinearLayout c=v();c.setBackground(box(CARD,18));c.setPadding(dp(16),dp(14),dp(16),dp(14));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,dp(10));c.setLayoutParams(p);return c;}
+            void title(String e,String t){TextView a=txt(e.toUpperCase(),11,true,GOLD);a.setLetterSpacing(.12f);page.addView(a);TextView b=txt(t,32,true,INK);b.setPadding(0,dp(5),0,dp(16));page.addView(b);}
+            double n(String k){try{return Double.parseDouble(sp.getString(k,"0"));}catch(Exception e){return 0;}}
+            void save(String k,String x){sp.edit().putString(k,x).apply();}
+            String money(double x){return String.format(Locale.US,"$%,.0f",x);}
+            String pct(double x){return String.format(Locale.US,"%.1f%%",x*100);}
+            double fixed(){return n("rent")+n("utilities")+n("software")+n("marketing")+n("otherFixed");}
+            double ticket(){return n("clients")==0?0:n("revenue")/n("clients");}
+            double util(){return n("available")==0?0:n("booked")/n("available");}
+            double rebook(){return n("clients")==0?0:n("returning")/n("clients");}
+            double loss(){return n("noshow")*ticket();}
+            double profit(){return n("revenue")+n("otherRev")-fixed()-n("variable");}
+            double margin(){return n("revenue")==0?0:profit()/n("revenue");}
+            double ph(){return n("booked")==0?0:profit()/n("booked");}
+            int score(){double a=Math.min(1,margin()/.30)*30,b=Math.min(1,util()/(n("targetUtil")/100))*25,c=Math.min(1,rebook()/(n("targetRebook")/100))*25,d=Math.max(0,1-loss()/Math.max(1,n("revenue")))*20;return (int)Math.max(0,Math.min(100,Math.round(a+b+c+d)));}
+
+            void metric(String l,String val,boolean dark){
+              LinearLayout c=card();if(dark)c.setBackground(box(INK,18));c.addView(txt(l,12,false,dark?Color.LTGRAY:MUTED));TextView b=txt(val,27,true,dark?Color.rgb(230,207,154):INK);b.setPadding(0,dp(7),0,0);c.addView(b);page.addView(c);
             }
 
-            Button nav(String s, View.OnClickListener c) {
-              Button b=new Button(this); b.setText(s); b.setOnClickListener(c); return b;
+            EditText field(String k,String l,String def){
+              LinearLayout c=card();c.addView(txt(l,12,false,MUTED));
+              EditText e=new EditText(this);e.setText(sp.getString(k,def));e.setTextSize(20);e.setTextColor(INK);e.setSingleLine();e.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL);e.setBackgroundColor(Color.TRANSPARENT);
+              e.setOnFocusChangeListener((x,f)->{if(!f)save(k,e.getText().toString());});c.addView(e);page.addView(c);return e;
             }
 
-            EditText input(String label, String value) {
-              EditText e=new EditText(this); e.setHint(label); e.setText(value); e.setTextSize(18); return e;
+            void dash(){
+              page.removeAllViews();title("Monthly snapshot","Busy doesn鈥檛 always mean profitable.");
+              metric("Profit health",score()+"/100",true);metric("Revenue",money(n("revenue")),false);metric("Operating profit",money(profit()),false);metric("Profit margin",pct(margin()),false);
+              metric("Utilization",pct(util()),false);metric("Average ticket",money(ticket()),false);metric("Rebooking",pct(rebook()),false);metric("No-show impact",money(loss()),false);metric("Profit / booked hour",money(ph()),false);
+              LinearLayout c=card();c.addView(txt("POTENTIAL PROFIT OPPORTUNITIES",12,true,INK));
+              double ug=Math.max(0,n("targetUtil")/100-util()),uo=ug*n("available")*(n("booked")==0?0:n("revenue")/n("booked"));
+              double rg=Math.max(0,n("targetRebook")/100-rebook()),ro=rg*n("clients")*ticket()*.5;
+              TextView s=txt("Utilization   "+money(uo)+"\n\nRebooking   "+money(ro)+"\n\nNo-shows   "+money(loss())+"\n\nServices   review lowest profit/hour",16,false,INK);s.setPadding(0,dp(12),0,0);c.addView(s);page.addView(c);
             }
 
-            void showDash() {
-              page.removeAllViews();
-              page.addView(txt("MONTHLY SNAPSHOT",12,true));
-              page.addView(txt("Busy doesn’t always mean profitable.",30,true));
-              String[] a={"Profit health 72/100","Revenue $18,750","Operating profit $5,430","Profit margin 28.9%","Utilization 68%","Avg ticket $79.50","Rebooking 62%","No-show impact $830"};
-              for(String s:a){
-                TextView c=txt(s,20,true);
-                c.setBackgroundColor(Color.WHITE);
-                c.setPadding(20,18,20,18);
-                page.addView(c);
-              }
-              page.addView(txt("Potential profit opportunities",18,true));
-              page.addView(txt("• Review lowest profit/hour service\n• Reduce no-shows\n• Improve utilization\n• Test one What-If scenario",16,false));
+            void setup(){
+              page.removeAllViews();title("Foundation","Business setup");
+              for(int i=0;i<keys.length;i++)field(keys[i],labels[i],defs[i]);
+              TextView x=txt("Numbers save automatically on this device.",12,false,MUTED);x.setPadding(0,0,0,dp(25));page.addView(x);
             }
 
-            void showSetup() {
-              page.removeAllViews();
-              page.addView(txt("Business setup",28,true));
-              page.addView(input("Monthly rent","1800"));
-              page.addView(input("Utilities","350"));
-              page.addView(input("Software","180"));
-              page.addView(input("Marketing","500"));
-              page.addView(input("Target utilization %","75"));
-              page.addView(input("Target rebooking %","55"));
+            double d(String s){try{return Double.parseDouble(s);}catch(Exception e){return 0;}}
+            EditText mini(String v,String hint){EditText e=new EditText(this);e.setHint(hint);e.setText(v);e.setTextSize(16);e.setSingleLine();e.setInputType(2|8192);return e;}
+            LinearLayout service(int i){
+              LinearLayout c=card();c.addView(txt("SERVICE "+(i+1),11,true,GOLD));
+              String dn=i==0?"Gel Manicure":i==1?"Structured Gel":i==2?"Gel-X Full Set":"Nail Art Add-on", dpv=i==0?"45":i==1?"65":i==2?"85":"20",dm=i==0?"75":i==1?"105":i==2?"120":"20",dc=i==0?"6":i==1?"9":i==2?"14":"2";
+              EditText name=new EditText(this);name.setText(sp.getString("s"+i+"n",dn));name.setTextSize(18);name.setSingleLine();name.setBackgroundColor(Color.TRANSPARENT);c.addView(name);
+              LinearLayout r=h();EditText p=mini(sp.getString("s"+i+"p",dpv),"Price"),m=mini(sp.getString("s"+i+"m",dm),"Min"),co=mini(sp.getString("s"+i+"c",dc),"Cost");
+              r.addView(p,new LinearLayout.LayoutParams(0,-2,1));r.addView(m,new LinearLayout.LayoutParams(0,-2,1));r.addView(co,new LinearLayout.LayoutParams(0,-2,1));c.addView(r);
+              double pv=d(p.getText().toString()),mv=d(m.getText().toString()),cv=d(co.getText().toString());c.addView(txt("Profit / hour  "+money(mv==0?0:(pv-cv)/(mv/60)),14,true,INK));
+              View.OnFocusChangeListener z=(v,f)->{if(!f){save("s"+i+"n",name.getText().toString());save("s"+i+"p",p.getText().toString());save("s"+i+"m",m.getText().toString());save("s"+i+"c",co.getText().toString());}};
+              name.setOnFocusChangeListener(z);p.setOnFocusChangeListener(z);m.setOnFocusChangeListener(z);co.setOnFocusChangeListener(z);return c;
+            }
+            void services(){page.removeAllViews();title("Service economics","Services");for(int i=0;i<4;i++)page.addView(service(i));}
+
+            SeekBar seek(LinearLayout c,String l,int p){c.addView(txt(l,14,true,INK));SeekBar s=new SeekBar(this);s.setMax(100);s.setProgress(p);c.addView(s);return s;}
+            void whatif(){
+              page.removeAllViews();title("Scenario lab","What if?");
+              LinearLayout c=card();SeekBar p=seek(c,"Price change",20),cl=seek(c,"Client volume",25),no=seek(c,"No-show reduction",50);page.addView(c);
+              metric("Current profit",money(profit()),false);LinearLayout pc=card();pc.setBackground(box(INK,18));pc.addView(txt("Projected profit",12,false,Color.LTGRAY));TextView out=txt(money(profit()),27,true,Color.rgb(230,207,154));pc.addView(out);page.addView(pc);
+              Runnable calc=()->{double pp=(p.getProgress()-10)/100.0,cc=(cl.getProgress()-20)/100.0,nc=no.getProgress()/100.0,rev=n("revenue")*(1+pp)*(1+cc)+loss()*nc;out.setText(money(rev+n("otherRev")-fixed()-n("variable")));};
+              SeekBar.OnSeekBarChangeListener l=new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int x,boolean f){calc.run();}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}};
+              p.setOnSeekBarChangeListener(l);cl.setOnSeekBarChangeListener(l);no.setOnSeekBarChangeListener(l);calc.run();
             }
 
-            void showServices() {
-              page.removeAllViews();
-              page.addView(txt("Services",28,true));
-              String[] s={"Gel Manicure — $45 — 75 min","Structured Gel — $65 — 105 min","Gel-X Full Set — $85 — 120 min","Nail Art Add-on — $20 — 20 min"};
-              for(String x:s) page.addView(txt(x,17,true));
+            EditText temp(String l,String v){LinearLayout c=card();c.addView(txt(l,12,false,MUTED));EditText e=mini(v,l);c.addView(e);page.addView(c);return e;}
+            void audit(){
+              page.removeAllViews();title("Fast check","30-second audit");
+              EditText r=temp("Revenue","15000"),e=temp("Operating expenses","9500"),a=temp("Available hours","240"),b=temp("Booked hours","165"),nn=temp("No-shows","12"),tk=temp("Average ticket","83");
+              LinearLayout oc=card();oc.setBackground(box(INK,18));oc.addView(txt("Audit result",12,false,Color.LTGRAY));TextView out=txt("Tap calculate",23,true,Color.rgb(230,207,154));oc.addView(out);page.addView(oc);
+              Button btn=new Button(this);btn.setText("CALCULATE");btn.setTextColor(Color.WHITE);btn.setBackground(box(INK,14));btn.setOnClickListener(v->{double rv=d(r.getText().toString()),ex=d(e.getText().toString()),av=d(a.getText().toString()),bk=d(b.getText().toString()),no=d(nn.getText().toString()),ti=d(tk.getText().toString()),pr=rv-ex,u=av==0?0:bk/av,ls=no*ti;String m=money(pr)+" profit 路 "+String.format(Locale.US,"%.0f%%",u*100)+" utilized";if(u<.60)m+="\nUnused capacity is the clearest opportunity.";else if(ls>rv*.05)m+="\nNo-shows have a material revenue impact.";else if(rv>0&&pr/rv<.15)m+="\nOperating margin looks thin.";else m+="\nQuick audit looks reasonably healthy.";out.setText(m);});page.addView(btn);
             }
 
-            void showWhatIf() {
-              page.removeAllViews();
-              page.addView(txt("What-If",28,true));
-              page.addView(txt("Price change +10%",18,true));
-              SeekBar a=new SeekBar(this); a.setProgress(40); page.addView(a);
-              page.addView(txt("Client volume +5%",18,true));
-              SeekBar b=new SeekBar(this); b.setProgress(25); page.addView(b);
-              page.addView(txt("Projected profit: $7,180",24,true));
-            }
+            TextView navItem(String s,Runnable r){TextView x=txt(s,10,true,Color.LTGRAY);x.setGravity(Gravity.CENTER);x.setPadding(dp(2),dp(14),dp(2),dp(14));x.setOnClickListener(v->{for(int i=0;i<nav.getChildCount();i++)nav.getChildAt(i).setBackgroundColor(Color.TRANSPARENT);x.setBackgroundColor(Color.rgb(34,38,40));r.run();});return x;}
 
-            void showAudit() {
-              page.removeAllViews();
-              page.addView(txt("30-second audit",28,true));
-              page.addView(input("Revenue","15000"));
-              page.addView(input("Expenses","9500"));
-              page.addView(input("Booked hours","165"));
-              page.addView(input("Available hours","240"));
-              page.addView(txt("Result: $5,500 profit · 69% utilized",22,true));
-            }
-
-            @Override public void onCreate(Bundle b) {
-              super.onCreate(b);
-              root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(18,18,18,18); root.setBackgroundColor(Color.rgb(247,243,235));
-              TextView brand=txt("PROFITMIRROR™\nNail Profit Engine",22,true); brand.setTextColor(Color.WHITE); brand.setBackgroundColor(Color.rgb(17,19,21)); brand.setPadding(18,18,18,18); root.addView(brand);
-
-              HorizontalScrollView hs=new HorizontalScrollView(this);
-              LinearLayout navs=new LinearLayout(this); navs.setOrientation(LinearLayout.HORIZONTAL);
-              navs.addView(nav("Dashboard",v->showDash()));
-              navs.addView(nav("Setup",v->showSetup()));
-              navs.addView(nav("Services",v->showServices()));
-              navs.addView(nav("What-If",v->showWhatIf()));
-              navs.addView(nav("Audit",v->showAudit()));
-              hs.addView(navs); root.addView(hs);
-
-              ScrollView sv=new ScrollView(this);
-              page=new LinearLayout(this); page.setOrientation(LinearLayout.VERTICAL); page.setPadding(10,14,10,30);
-              sv.addView(page); root.addView(sv,new LinearLayout.LayoutParams(-1,0,1));
-              setContentView(root); showDash();
+            @Override public void onCreate(Bundle b){
+              super.onCreate(b);sp=getSharedPreferences("pm",0);for(int i=0;i<keys.length;i++)if(!sp.contains(keys[i]))save(keys[i],defs[i]);
+              LinearLayout root=v();root.setBackgroundColor(BG);
+              LinearLayout head=v();head.setBackgroundColor(INK);head.setPadding(dp(16),dp(14),dp(16),dp(14));head.addView(txt("PROFITMIRROR鈩�",23,true,Color.WHITE));head.addView(txt("Nail Profit Engine",13,false,Color.LTGRAY));root.addView(head);
+              ScrollView sv=new ScrollView(this);page=v();page.setPadding(dp(14),dp(16),dp(14),dp(28));sv.addView(page);root.addView(sv,new LinearLayout.LayoutParams(-1,0,1));
+              nav=h();nav.setBackgroundColor(INK);nav.addView(navItem("DASH",this::dash),new LinearLayout.LayoutParams(0,-2,1));nav.addView(navItem("SETUP",this::setup),new LinearLayout.LayoutParams(0,-2,1));nav.addView(navItem("SERVICES",this::services),new LinearLayout.LayoutParams(0,-2,1));nav.addView(navItem("WHAT-IF",this::whatif),new LinearLayout.LayoutParams(0,-2,1));nav.addView(navItem("AUDIT",this::audit),new LinearLayout.LayoutParams(0,-2,1));root.addView(nav);
+              setContentView(root);dash();nav.getChildAt(0).setBackgroundColor(Color.rgb(34,38,40));
             }
           }
           EOF
@@ -183,5 +189,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ProfitMirror-APK
+          name: ProfitMirror-APK-v02
           path: app/build/outputs/apk/debug/app-debug.apk
